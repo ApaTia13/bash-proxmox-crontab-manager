@@ -64,15 +64,11 @@ CONFIG_FILE="$HOME/.proxcron.conf"
 if [ -f "$CONFIG_FILE" ]; then source "$CONFIG_FILE"; else TELEGRAM_TOKEN=""; TELEGRAM_CHAT_ID=""; fi
 
 # Экранирование HTML-сущностей для Telegram
-escape_html() {
-    sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g;' <<< "$1"
-}
-
 # Отправка уведомления в Telegram
 send_telegram() {
     local message="$1"
     if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && command -v curl &>/dev/null; then
-        local escaped_message=$(escape_html "$message")
+        local escaped_message="$message"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
             -d text="$escaped_message" \
@@ -146,7 +142,12 @@ EXIT_CODE=$?
     echo "----------------------------------------"
 } >> "$LOG_FILE"
 
-[ $EXIT_CODE -ne 0 ] && send_telegram "<b>❌ Ошибка</b>%0A<b>Хост:</b> $HOSTNAME ($LOCAL_IP)%0A<b>Команда:</b> <code>$COMMAND</code>%0A<b>Описание:</b> $DESCRIPTION%0A<b>Код возврата:</b> $EXIT_CODE%0A<b>Вывод:</b> ${OUTPUT:0:500}"
+if [ $EXIT_CODE -ne 0 ]; then
+    local msg
+    printf -v msg "<b>❌ Ошибка</b>\n<b>Хост:</b> %s\n<b>Команда:</b> <code>%s</code>\n<b>Описание:</b> %s\n<b>Код возврата:</b> %s\n<b>Вывод:</b> %s" \
+        "$HOSTNAME ($LOCAL_IP)" "$COMMAND" "$DESCRIPTION" "$EXIT_CODE" "${OUTPUT:0:500}"
+    send_telegram "$msg"
+fi
 
 exit $EXIT_CODE
 EOF
@@ -205,14 +206,10 @@ fi
 rotate_logs 30
 rotate_backups 30
 
-escape_html() {
-    sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g;' <<< "$1"
-}
-
 send_telegram() {
     local message="$1"
     if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && command -v curl &>/dev/null; then
-        local escaped_message=$(escape_html "$message")
+        local escaped_message="$message"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
             -d text="$escaped_message" \
@@ -252,7 +249,7 @@ EOF
         chmod 600 "$CONFIG_FILE"
         echo -e "${GREEN}Конфигурация сохранена в $CONFIG_FILE (права 600)${DEFAULT}" >&2
         echo -e "${YELLOW}Отправляем тестовое сообщение...${DEFAULT}" >&2
-        if send_telegram "<b>✅ Тест</b>%0AНастройка Telegram выполнена успешно."; then
+        if send_telegram $'<b>✅ Тест</b>\nНастройка Telegram выполнена успешно.'; then
             echo -e "${GREEN}✓ Тестовое сообщение отправлено.${DEFAULT}" >&2
         else
             echo -e "${RED}✗ Ошибка отправки. Проверьте токен и chat ID.${DEFAULT}" >&2
