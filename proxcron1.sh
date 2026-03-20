@@ -422,7 +422,7 @@ cron_to_human() {
     fi
 
     format_time() {
-        printf "%02d:%02d" "$1" "$2"
+        printf "%02d:%02d" "$1" "$2" 
     }
 
     weekday_name() {
